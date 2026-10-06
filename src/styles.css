@@ -2503,6 +2503,129 @@ tbody tr:last-child td { border-bottom: 0; }
 .form-warning strong { font-size: 13px; color: #8a0b45; font-weight: 700; }
 .form-warning p { margin: 5px 0 0; color: #72495b; font-size: 11.5px; line-height: 1.5; }
 
+/* Formulário de Lançamento de Venda */
+.sale-launch-form {
+  display: grid;
+  gap: 14px;
+}
+
+.form-group-card {
+  padding: 14px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.dark-mode .form-group-card {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.form-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.form-group-header strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--theme-nav-color);
+}
+
+.toggle-link-btn {
+  border: 0;
+  background: transparent;
+  color: var(--theme-primary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.toggle-link-btn:hover {
+  background: var(--theme-primary-soft);
+}
+
+.stock-zero-badge {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dark-mode .stock-zero-badge {
+  background: #14281e;
+  border-color: #1e4531;
+  color: #86efac;
+}
+
+.stock-zero-badge.warning {
+  background: #fefce8;
+  border-color: #fef08a;
+  color: #854d0e;
+}
+
+.dark-mode .stock-zero-badge.warning {
+  background: #2a2412;
+  border-color: #4a3e1b;
+  color: #fde047;
+}
+
+/* Modal e Dica para iPhone PWA */
+.ios-pwa-sheet {
+  display: grid;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.ios-pwa-steps {
+  display: grid;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.02);
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+}
+
+.dark-mode .ios-pwa-steps {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ios-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #334155;
+}
+
+.dark-mode .ios-step {
+  color: #cbd5e1;
+}
+
+.ios-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--theme-primary);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 .sale-total {
   display: flex;
   align-items: center;
@@ -2649,6 +2772,32 @@ tbody tr:last-child td { border-bottom: 0; }
   }
   .page-content {
     padding: 18px 16px max(90px, calc(75px + env(safe-area-inset-bottom)));
+  }
+  /* Banner de boas-vindas fluido no iPhone (remove a imagem que espremia o texto) */
+  .welcome-banner {
+    padding: 20px 18px !important;
+    border-radius: 18px !important;
+    margin-bottom: 20px !important;
+    display: block !important;
+    min-height: auto !important;
+  }
+  .welcome-banner-text {
+    padding: 0 !important;
+    width: 100% !important;
+  }
+  .welcome-banner-text h2 {
+    font-size: 21px !important;
+    line-height: 1.35 !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    margin: 0 0 6px !important;
+  }
+  .welcome-banner-text p {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+  }
+  .welcome-banner-art {
+    display: none !important;
   }
   .mobile-title { display: block; margin-bottom: 22px; }
   .mobile-title h1 { font-size: 26px; }

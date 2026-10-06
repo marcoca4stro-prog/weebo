@@ -10,6 +10,7 @@ import {
   Smartphone,
   X
 } from 'lucide-react'
+import Modal from './components/Modal'
 import NewSaleModal from './components/NewSaleModal'
 import Sidebar from './components/Sidebar'
 import useLocalStorage from './hooks/useLocalStorage'
@@ -20,6 +21,7 @@ import ProductsPage from './pages/ProductsPage'
 import SalesPage from './pages/SalesPage'
 import SettingsPage from './pages/SettingsPage'
 import { STORAGE_KEYS, formatCurrency, formatDate } from './data'
+import { playNotificationChime } from './utils/audio'
 
 const rawDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full' }).format(new Date())
 const todayLabel = rawDate.charAt(0).toUpperCase() + rawDate.slice(1)
@@ -33,6 +35,8 @@ export default function App() {
   const [saleModalOpen, setSaleModalOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [iosBannerDismissed, setIosBannerDismissed] = useState(false)
+  const [customPushNotification, setCustomPushNotification] = useState(null)
+  const [showIosPwaTip, setShowIosPwaTip] = useState(false)
   const [query, setQuery] = useState('')
 
   const [products, setProducts] = useLocalStorage(STORAGE_KEYS.products, [])
@@ -115,25 +119,56 @@ export default function App() {
 
   // Disparo de notificação para iPhone / Web Notification
   function triggerIPhoneNotificationPermission() {
+    playNotificationChime()
+    const msg = upcomingReceivables.length > 0
+      ? `Você tem ${upcomingReceivables.length} pagamento(s) próximo(s) do vencimento!`
+      : 'Alertas sonoros e visuais ativados com sucesso para o seu iPhone!'
+
+    setCustomPushNotification({
+      title: 'Weebo • Alerta no iPhone',
+      body: msg
+    })
+
     if ('Notification' in window) {
       Notification.requestPermission().then((permission) => {
-        if (permission === 'granted' && upcomingReceivables.length > 0) {
-          const first = upcomingReceivables[0]
-          new Notification('Weebo • Pagamento a receber', {
-            body: `${first.customerName}: ${formatCurrency(first.total)} (${first.label})`,
+        if (permission === 'granted') {
+          new Notification('Weebo Cosméticos', {
+            body: msg,
             icon: '/logo.png'
           })
         }
       })
     }
+
+    // Se estiver no iPhone e não estiver em modo PWA, exibe a dica para adicionar à tela de início
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
+    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches
+    if (isIos && !isStandalone) {
+      setTimeout(() => setShowIosPwaTip(true), 800)
+    }
   }
 
-  function saveSale(sale) {
+  function saveSale(payload) {
+    const sale = payload?.sale || payload
+    const newProduct = payload?.newProduct
+    const newCustomer = payload?.newCustomer
+
+    if (newCustomer) {
+      setCustomers((current) => [newCustomer, ...current.filter((c) => c.id !== newCustomer.id)])
+    }
+
+    if (newProduct) {
+      // Produto adicionado via lançamento de venda entra no estoque ZERADO (0)
+      setProducts((current) => [newProduct, ...current.filter((p) => p.id !== newProduct.id)])
+    } else if (sale.productId) {
+      setProducts((current) => current.map((product) => product.id === sale.productId ? {
+        ...product,
+        // Ao realizar venda, o estoque reduz ou permanece zerado (0)
+        stock: Math.max(0, Number(product.stock) - sale.quantity)
+      } : product))
+    }
+
     setSales((current) => [sale, ...current])
-    setProducts((current) => current.map((product) => product.id === sale.productId ? {
-      ...product,
-      stock: allowOutOfStock ? Number(product.stock) - sale.quantity : Math.max(0, Number(product.stock) - sale.quantity)
-    } : product))
   }
 
   function markPaid(id) {
@@ -151,19 +186,29 @@ export default function App() {
       data-mode={darkMode ? 'dark' : 'light'}
     >
       {/* Banner de Notificação Estilo iOS para iPhone */}
-      {!iosBannerDismissed && upcomingReceivables.length > 0 && (
+      {(customPushNotification || (!iosBannerDismissed && upcomingReceivables.length > 0)) && (
         <aside className="ios-push-banner" role="alert" aria-live="polite">
           <div className="ios-push-icon">
             <img src="/logo.png" alt="" />
           </div>
-          <div className="ios-push-body" onClick={() => setNotificationsOpen(true)}>
+          <div
+            className="ios-push-body"
+            onClick={() => {
+              setNotificationsOpen(true)
+              setCustomPushNotification(null)
+            }}
+          >
             <div className="ios-push-header">
               <span>WEEBO</span>
               <small>AGORA</small>
             </div>
-            <strong>Pagamento próximo do vencimento</strong>
+            <strong>
+              {customPushNotification ? customPushNotification.title : 'Pagamento próximo do vencimento'}
+            </strong>
             <p>
-              {upcomingReceivables.length === 1
+              {customPushNotification
+                ? customPushNotification.body
+                : upcomingReceivables.length === 1
                 ? `${upcomingReceivables[0].customerName}: ${formatCurrency(upcomingReceivables[0].total)} (${upcomingReceivables[0].label})`
                 : `Você tem ${upcomingReceivables.length} pagamentos a receber próximos do vencimento.`}
             </p>
@@ -171,7 +216,10 @@ export default function App() {
           <button
             type="button"
             className="ios-push-close"
-            onClick={() => setIosBannerDismissed(true)}
+            onClick={() => {
+              setCustomPushNotification(null)
+              setIosBannerDismissed(true)
+            }}
             aria-label="Dispensar aviso"
           >
             <X size={15} />
@@ -311,7 +359,13 @@ export default function App() {
               todayLabel={todayLabel}
             />
           )}
-          {active === 'Vendas' && <SalesPage sales={searchedSales} onNewSale={() => setSaleModalOpen(true)} onMarkPaid={markPaid} />}
+          {(active === 'Vendas' || active === 'Vendas e Lançamentos') && (
+            <SalesPage
+              sales={searchedSales}
+              onNewSale={() => setSaleModalOpen(true)}
+              onMarkPaid={markPaid}
+            />
+          )}
           {active === 'Estoque' && <ProductsPage products={searchedProducts} setProducts={setProducts} />}
           {active === 'Clientes' && <CustomersPage customers={searchedCustomers} setCustomers={setCustomers} sales={sales} />}
           {active === 'Financeiro' && <FinancePage sales={searchedSales} expenses={expenses} setExpenses={setExpenses} onMarkPaid={markPaid} />}
@@ -325,10 +379,13 @@ export default function App() {
               setAllowOutOfStock={setAllowOutOfStock}
               notificationLeadTime={notificationLeadTime}
               setNotificationLeadTime={setNotificationLeadTime}
+              onTestNotification={triggerIPhoneNotificationPermission}
             />
           )}
         </div>
-        <button className="floating-action" onClick={() => setSaleModalOpen(true)}><Plus size={21} />Nova venda</button>
+        <button className="floating-action" onClick={() => setSaleModalOpen(true)}>
+          <Plus size={21} />Novo lançamento
+        </button>
       </main>
       <NewSaleModal
         open={saleModalOpen}
@@ -338,6 +395,41 @@ export default function App() {
         customers={customers}
         allowOutOfStock={allowOutOfStock}
       />
+
+      {/* Dica para iPhone PWA (Receber notificações com Safari fechado) */}
+      {showIosPwaTip && (
+        <Modal
+          open={showIosPwaTip}
+          title="Notificações no iPhone"
+          description="Como receber alertas sonoros mesmo com a tela bloqueada."
+          onClose={() => setShowIosPwaTip(false)}
+        >
+          <div className="ios-pwa-sheet">
+            <div className="ios-pwa-steps">
+              <div className="ios-step">
+                <span className="ios-step-num">1</span>
+                <div>No Safari do iPhone, toque no botão <b>Compartilhar</b> (ícone no rodapé com um quadrado e uma seta para cima).</div>
+              </div>
+              <div className="ios-step">
+                <span className="ios-step-num">2</span>
+                <div>Role a lista para baixo e toque em <b>Adicionar à Tela de Início</b>.</div>
+              </div>
+              <div className="ios-step">
+                <span className="ios-step-num">3</span>
+                <div>Toque em <b>Adicionar</b> no canto superior direito.</div>
+              </div>
+            </div>
+            <p style={{ margin: '0', fontSize: '12px', color: 'var(--muted)', textAlign: 'center' }}>
+              ✓ Os alertas sonoros e o banner no topo da tela já estão 100% ativos!
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="primary" onClick={() => setShowIosPwaTip(false)}>
+                Entendi, continuar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { Bell, Camera, Check, Clock, Moon, RefreshCw, Settings, ShieldCheck, Smartphone, Sun, User } from 'lucide-react'
+import { playNotificationChime } from '../utils/audio'
 
 export default function SettingsPage({
   darkMode,
@@ -9,7 +10,8 @@ export default function SettingsPage({
   allowOutOfStock,
   setAllowOutOfStock,
   notificationLeadTime = '1_day',
-  setNotificationLeadTime
+  setNotificationLeadTime,
+  onTestNotification
 }) {
   const fileInputRef = useRef(null)
   const [successMessage, setSuccessMessage] = useState('')
@@ -45,6 +47,12 @@ export default function SettingsPage({
   }
 
   function requestIPhoneNotifications() {
+    playNotificationChime()
+    if (onTestNotification) {
+      onTestNotification()
+      notify('Alerta disparado com som no seu iPhone!')
+      return
+    }
     if ('Notification' in window) {
       Notification.requestPermission().then((permission) => {
         if (permission === 'granted') {
@@ -54,11 +62,11 @@ export default function SettingsPage({
           })
           notify('Notificações autorizadas com sucesso!')
         } else {
-          notify('Permissão para notificações não foi concedida no navegador.')
+          notify('Alerta sonoro e visual disparado no topo da tela!')
         }
       })
     } else {
-      notify('Notificações em tela (banners e avisos) já estão 100% ativas!')
+      notify('Alerta sonoro e visual disparado no topo da tela!')
     }
   }
 

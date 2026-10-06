@@ -13,7 +13,7 @@ import {
 
 const items = [
   [LayoutGrid, 'Visão geral'],
-  [BarChart3, 'Vendas'],
+  [BarChart3, 'Vendas e Lançamentos'],
   [Package, 'Estoque'],
   [User, 'Clientes'],
   [CircleDollarSign, 'Financeiro'],
@@ -50,17 +50,20 @@ export default function Sidebar({ active, onChange, open, onClose, collapsed, on
       )}
 
       <nav aria-label="Navegação principal">
-        {items.map(([Icon, label]) => (
-          <button
-            key={label}
-            className={active === label ? 'nav-item active' : 'nav-item'}
-            onClick={() => { onChange(label); onClose() }}
-            title={collapsed ? label : undefined}
-          >
-            <Icon size={20} strokeWidth={1.8} className="nav-icon" />
-            {!collapsed && <span>{label}</span>}
-          </button>
-        ))}
+        {items.map(([Icon, label]) => {
+          const isItemActive = active === label || (label === 'Vendas e Lançamentos' && (active === 'Vendas' || active === 'Vendas e Lançamentos'))
+          return (
+            <button
+              key={label}
+              className={isItemActive ? 'nav-item active' : 'nav-item'}
+              onClick={() => { onChange(label); onClose() }}
+              title={collapsed ? label : undefined}
+            >
+              <Icon size={20} strokeWidth={1.8} className="nav-icon" />
+              {!collapsed && <span>{label}</span>}
+            </button>
+          )
+        })}
       </nav>
 
       {/* Cartão motivacional com elementos botânicos decorativos */}
