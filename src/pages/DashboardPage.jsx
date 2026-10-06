@@ -12,7 +12,7 @@ const filterOptions = [
   { label: 'WePink', dot: 'wp' }
 ]
 
-export default function DashboardPage({ brand, setBrand, sales, products, onNewSale, onNavigate, todayLabel }) {
+export default function DashboardPage({ brand, setBrand, sales, products, onNewSale, onNavigate, todayLabel, onEditSale, onMarkPaid }) {
   const filtered = brand === 'Todas as marcas' ? sales : sales.filter((item) => item.brand === brand)
   const total = filtered.reduce((sum, sale) => sum + sale.total, 0)
   const profit = filtered.reduce((sum, sale) => sum + sale.total - sale.unitCost * sale.quantity, 0)
@@ -87,7 +87,7 @@ export default function DashboardPage({ brand, setBrand, sales, products, onNewS
       <div className="primary-column">
         <SalesChart brand={brand} sales={filtered} />
         {filtered.length > 0 ? (
-          <RecentSales sales={filtered.slice(0, 5)} />
+          <RecentSales sales={filtered.slice(0, 5)} onEditSale={onEditSale} onMarkPaid={onMarkPaid} />
         ) : (
           <section className="panel sales-panel">
             <div className="panel-heading"><h2>Últimas vendas</h2></div>

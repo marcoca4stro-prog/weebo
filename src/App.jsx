@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import Modal from './components/Modal'
 import NewSaleModal from './components/NewSaleModal'
+import EditSaleModal from './components/EditSaleModal'
 import Sidebar from './components/Sidebar'
 import useLocalStorage from './hooks/useLocalStorage'
 import CustomersPage from './pages/CustomersPage'
@@ -33,6 +34,7 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [saleModalOpen, setSaleModalOpen] = useState(false)
+  const [editingSale, setEditingSale] = useState(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [iosBannerDismissed, setIosBannerDismissed] = useState(false)
   const [customPushNotification, setCustomPushNotification] = useState(null)
@@ -169,6 +171,14 @@ export default function App() {
     }
 
     setSales((current) => [sale, ...current])
+  }
+
+  function updateSale(updatedSale) {
+    setSales((current) => current.map((item) => (item.id === updatedSale.id ? updatedSale : item)))
+  }
+
+  function deleteSale(id) {
+    setSales((current) => current.filter((item) => item.id !== id))
   }
 
   function markPaid(id) {
@@ -357,6 +367,8 @@ export default function App() {
               onNewSale={() => setSaleModalOpen(true)}
               onNavigate={navigate}
               todayLabel={todayLabel}
+              onEditSale={(sale) => setEditingSale(sale)}
+              onMarkPaid={markPaid}
             />
           )}
           {(active === 'Lançamentos' || active === 'Vendas' || active === 'Vendas e Lançamentos') && (
@@ -364,6 +376,7 @@ export default function App() {
               sales={searchedSales}
               onNewSale={() => setSaleModalOpen(true)}
               onMarkPaid={markPaid}
+              onEditSale={(sale) => setEditingSale(sale)}
             />
           )}
           {active === 'Estoque' && <ProductsPage products={searchedProducts} setProducts={setProducts} />}
@@ -394,6 +407,14 @@ export default function App() {
         products={products}
         customers={customers}
         allowOutOfStock={allowOutOfStock}
+      />
+
+      <EditSaleModal
+        open={Boolean(editingSale)}
+        sale={editingSale}
+        onClose={() => setEditingSale(null)}
+        onSave={updateSale}
+        onDelete={deleteSale}
       />
 
       {/* Dica para iPhone PWA (Receber notificações com Safari fechado) */}

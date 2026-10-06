@@ -2501,11 +2501,47 @@ tbody tr:last-child td { border-bottom: 0; }
   padding: 3px 6px;
   border-radius: 6px;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .inline-action:hover {
   background: var(--theme-primary-soft);
   text-decoration: none;
+}
+
+.edit-action-btn {
+  background: rgba(244, 6, 117, 0.08);
+  color: var(--theme-primary);
+  border: 1px solid rgba(244, 6, 117, 0.18);
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.edit-action-btn:hover {
+  background: var(--theme-primary);
+  color: #ffffff;
+  border-color: var(--theme-primary);
+}
+
+.delete-action-btn:hover {
+  background: #ffebee !important;
+  color: #c62828 !important;
+}
+
+.dark-mode .edit-action-btn {
+  background: rgba(244, 6, 117, 0.15);
+  border-color: rgba(244, 6, 117, 0.3);
+}
+
+.dark-mode .edit-action-btn:hover {
+  background: var(--theme-primary);
+  color: #ffffff;
+}
+
+.dark-mode .delete-action-btn {
+  background: rgba(211, 47, 47, 0.12) !important;
+  border-color: rgba(211, 47, 47, 0.3) !important;
 }
 
 .modal textarea {
