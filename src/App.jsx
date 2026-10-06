@@ -359,7 +359,7 @@ export default function App() {
               todayLabel={todayLabel}
             />
           )}
-          {(active === 'Vendas' || active === 'Vendas e Lançamentos') && (
+          {(active === 'Lançamentos' || active === 'Vendas' || active === 'Vendas e Lançamentos') && (
             <SalesPage
               sales={searchedSales}
               onNewSale={() => setSaleModalOpen(true)}

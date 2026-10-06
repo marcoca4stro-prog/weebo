@@ -13,7 +13,7 @@ import {
 
 const items = [
   [LayoutGrid, 'Visão geral'],
-  [BarChart3, 'Vendas e Lançamentos'],
+  [BarChart3, 'Lançamentos'],
   [Package, 'Estoque'],
   [User, 'Clientes'],
   [CircleDollarSign, 'Financeiro'],
@@ -51,7 +51,10 @@ export default function Sidebar({ active, onChange, open, onClose, collapsed, on
 
       <nav aria-label="Navegação principal">
         {items.map(([Icon, label]) => {
-          const isItemActive = active === label || (label === 'Vendas e Lançamentos' && (active === 'Vendas' || active === 'Vendas e Lançamentos'))
+          const isItemActive =
+            active === label ||
+            (label === 'Lançamentos' &&
+              (active === 'Lançamentos' || active === 'Vendas' || active === 'Vendas e Lançamentos'))
           return (
             <button
               key={label}

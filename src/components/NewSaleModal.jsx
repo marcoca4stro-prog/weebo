@@ -24,6 +24,7 @@ export default function NewSaleModal({
   const [selectedProductId, setSelectedProductId] = useState(products[0]?.id || '')
   const [quantity, setQuantity] = useState(1)
   const [payment, setPayment] = useState('PIX')
+  const [installments, setInstallments] = useState(1)
   const [status, setStatus] = useState('Pago')
   const [dueDate, setDueDate] = useState('')
 
@@ -39,6 +40,7 @@ export default function NewSaleModal({
     : Number(existingProduct?.price) || 0
 
   const total = unitPrice * (Number(quantity) || 0)
+  const installmentValue = installments > 1 ? total / installments : total
 
   function resetForm() {
     setIsNewCustomer(customers.length === 0)
@@ -53,6 +55,7 @@ export default function NewSaleModal({
     setSelectedProductId(products[0]?.id || '')
     setQuantity(1)
     setPayment('PIX')
+    setInstallments(1)
     setStatus('Pago')
     setDueDate('')
   }
@@ -143,6 +146,8 @@ export default function NewSaleModal({
       unitCost,
       total,
       payment,
+      installments: Number(installments) || 1,
+      installmentValue,
       status,
       dueDate: status === 'A receber' ? dueDate : ''
     }
@@ -313,7 +318,7 @@ export default function NewSaleModal({
           )}
         </div>
 
-        {/* Quantidade e Pagamento */}
+        {/* Quantidade */}
         <div className="field-row">
           <label>
             Quantidade *
@@ -337,8 +342,26 @@ export default function NewSaleModal({
           </label>
         </div>
 
-        {/* Status e Vencimento */}
+        {/* Parcelamento do Valor Total */}
         <div className="field-row">
+          <label>
+            Parcelamento
+            <select
+              value={installments}
+              onChange={(e) => setInstallments(Number(e.target.value))}
+            >
+              <option value={1}>À vista (1x)</option>
+              {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => {
+                const val = total > 0 ? total / num : 0
+                return (
+                  <option key={num} value={num}>
+                    {num}x de {val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </option>
+                )
+              })}
+            </select>
+          </label>
+
           <label>
             Status do pagamento
             <select value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -346,35 +369,43 @@ export default function NewSaleModal({
               <option value="A receber">A receber</option>
             </select>
           </label>
-          {status === 'A receber' ? (
-            <label>
-              Data de vencimento *
-              <input
-                required
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </label>
-          ) : (
-            <div />
-          )}
         </div>
 
-        {/* Total do lançamento */}
+        {/* Vencimento (quando a receber) */}
+        {status === 'A receber' && (
+          <label>
+            Data de vencimento {installments > 1 ? '(1ª parcela)' : ''} *
+            <input
+              required
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </label>
+        )}
+
+        {/* Total do lançamento com detalhe das parcelas */}
         <div className="sale-total">
-          <span>Total do lançamento</span>
+          <div>
+            <span>Total do lançamento</span>
+            {installments > 1 && total > 0 && (
+              <small style={{ display: 'block', color: 'var(--theme-primary)', fontWeight: 700, fontSize: '12px', marginTop: 3 }}>
+                {installments}x de {installmentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </small>
+            )}
+          </div>
           <strong>
             {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </strong>
         </div>
 
+        {/* Ações / Botão Adicionar sempre visível */}
         <div className="modal-actions">
           <button type="button" className="secondary" onClick={onClose}>
             Cancelar
           </button>
           <button className="primary" type="submit">
-            Confirmar Lançamento
+            Adicionar Lançamento
           </button>
         </div>
       </form>
