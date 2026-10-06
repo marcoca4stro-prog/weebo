@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import Modal from './Modal'
-import { BRAND_OPTIONS, PAYMENT_OPTIONS } from '../data'
-import { Trash2 } from 'lucide-react'
+import { BRAND_OPTIONS, PAYMENT_OPTIONS, formatCurrency } from '../data'
+import { ensureSaleInstallments, generateInstallmentsList } from '../utils/installments'
+import { Trash2, ShoppingBag } from 'lucide-react'
 
 export default function EditSaleModal({
   open,
@@ -80,21 +81,41 @@ export default function EditSaleModal({
       return
     }
 
-    const updatedSale = {
+    const instCount = Number(installments) || 1
+    const totalVal = Number(total) || 0
+
+    // Se o valor ou parcelamento mudou em relação ao original, regenera a lista de parcelas
+    let updatedInstallmentsList = sale.installmentsList
+    const countChanged = sale.installments !== instCount
+    const totalChanged = Math.abs((Number(sale.total) || 0) - totalVal) > 0.05
+    const statusChanged = sale.status !== status
+
+    if (!updatedInstallmentsList || countChanged || totalChanged || (statusChanged && status === 'Pago')) {
+      updatedInstallmentsList = generateInstallmentsList({
+        total: totalVal,
+        installmentsCount: instCount,
+        firstDueDate: dueDate,
+        saleDate: date || sale.date,
+        status
+      })
+    }
+
+    const updatedSale = ensureSaleInstallments({
       ...sale,
       customerName: customerName.trim(),
       productName: productName.trim(),
       brand,
       quantity: Number(quantity) || 1,
-      unitPrice: Number(unitPrice) || (total / (Number(quantity) || 1)),
-      total: Number(total) || 0,
+      unitPrice: Number(unitPrice) || (totalVal / (Number(quantity) || 1)),
+      total: totalVal,
       payment,
-      installments: Number(installments) || 1,
+      installments: instCount,
       installmentValue,
       status,
       dueDate: status === 'A receber' ? dueDate : '',
-      date: date || sale.date
-    }
+      date: date || sale.date,
+      installmentsList: updatedInstallmentsList
+    })
 
     onSave(updatedSale)
     onClose()
@@ -115,6 +136,26 @@ export default function EditSaleModal({
       onClose={onClose}
     >
       <form onSubmit={submit} className="sale-launch-form">
+        {/* Seção Itens do Pedido (se houver múltiplos) */}
+        {sale.items && sale.items.length > 1 && (
+          <div className="form-group-card">
+            <div className="form-group-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ShoppingBag size={15} color="var(--theme-primary)" />
+                <strong>Itens deste pedido ({sale.items.length})</strong>
+              </div>
+            </div>
+            <div className="compact-items-preview">
+              {sale.items.map((it, idx) => (
+                <div key={it.id || idx} className="preview-item-chip">
+                  <span>{it.productName} ({it.quantity}x)</span>
+                  <b>{formatCurrency(it.total)}</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Seção Cliente */}
         <div className="form-group-card">
           <div className="form-group-header">
@@ -135,11 +176,11 @@ export default function EditSaleModal({
         {/* Seção Produto e Marca */}
         <div className="form-group-card">
           <div className="form-group-header">
-            <strong>Produto & Marca</strong>
+            <strong>Descrição do Pedido & Marca</strong>
           </div>
           <div className="field-row">
             <label style={{ flex: 2 }}>
-              Nome do produto
+              Descrição dos produtos
               <input
                 type="text"
                 required
@@ -149,7 +190,7 @@ export default function EditSaleModal({
               />
             </label>
             <label style={{ flex: 1.2 }}>
-              Marca
+              Marca principal
               <select
                 value={brand}
                 onChange={(e) => setBrand(e.target.value)}
@@ -159,6 +200,7 @@ export default function EditSaleModal({
                     {opt}
                   </option>
                 ))}
+                <option value="WePink / O Boticário">WePink / O Boticário</option>
               </select>
             </label>
           </div>
@@ -171,7 +213,7 @@ export default function EditSaleModal({
           </div>
           <div className="field-row">
             <label>
-              Quantidade
+              Quantidade total
               <input
                 type="number"
                 min="1"
@@ -181,7 +223,7 @@ export default function EditSaleModal({
               />
             </label>
             <label>
-              Preço unitário (R$)
+              Preço médio un. (R$)
               <input
                 type="number"
                 step="0.01"
@@ -232,7 +274,7 @@ export default function EditSaleModal({
                 <option value={1}>À vista (1x)</option>
                 {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
                   <option key={num} value={num}>
-                    {num}x {total > 0 ? `(R$ ${(total / num).toFixed(2)})` : ''}
+                    {num}x {total > 0 ? `(${formatCurrency(total / num)})` : ''}
                   </option>
                 ))}
               </select>
@@ -250,8 +292,8 @@ export default function EditSaleModal({
                   color: status === 'Pago' ? '#2ea86e' : '#f40675'
                 }}
               >
-                <option value="Pago">Pago (Recebido)</option>
-                <option value="A receber">A receber (Pendente)</option>
+                <option value="Pago">Pago (Recebido integral)</option>
+                <option value="A receber">A receber (Pendente / Parcelado)</option>
               </select>
             </label>
             {status === 'A receber' ? (

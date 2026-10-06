@@ -13,6 +13,8 @@ import {
 import Modal from './components/Modal'
 import NewSaleModal from './components/NewSaleModal'
 import EditSaleModal from './components/EditSaleModal'
+import PaymentModal from './components/PaymentModal'
+import CustomerDetailsModal from './components/CustomerDetailsModal'
 import Sidebar from './components/Sidebar'
 import useLocalStorage from './hooks/useLocalStorage'
 import CustomersPage from './pages/CustomersPage'
@@ -23,6 +25,7 @@ import SalesPage from './pages/SalesPage'
 import SettingsPage from './pages/SettingsPage'
 import { STORAGE_KEYS, formatCurrency, formatDate } from './data'
 import { playNotificationChime } from './utils/audio'
+import { ensureSaleInstallments, payAllRemainingInstallments } from './utils/installments'
 
 const rawDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full' }).format(new Date())
 const todayLabel = rawDate.charAt(0).toUpperCase() + rawDate.slice(1)
@@ -34,7 +37,10 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [saleModalOpen, setSaleModalOpen] = useState(false)
+  const [saleInitialCustomerId, setSaleInitialCustomerId] = useState('')
   const [editingSale, setEditingSale] = useState(null)
+  const [paymentSale, setPaymentSale] = useState(null)
+  const [statementCustomer, setStatementCustomer] = useState(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [iosBannerDismissed, setIosBannerDismissed] = useState(false)
   const [customPushNotification, setCustomPushNotification] = useState(null)
@@ -67,18 +73,24 @@ export default function App() {
   }
 
   const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR')
-  const searchedSales = normalizedQuery ? sales.filter((item) => `${item.customerName} ${item.productName} ${item.brand}`.toLocaleLowerCase('pt-BR').includes(normalizedQuery)) : sales
-  const searchedProducts = normalizedQuery ? products.filter((item) => `${item.name} ${item.brand} ${item.category}`.toLocaleLowerCase('pt-BR').includes(normalizedQuery)) : products
-  const searchedCustomers = normalizedQuery ? customers.filter((item) => `${item.name} ${item.phone} ${item.email}`.toLocaleLowerCase('pt-BR').includes(normalizedQuery)) : customers
+  const searchedSales = normalizedQuery
+    ? sales.filter((item) => `${item.customerName} ${item.productName} ${item.brand}`.toLocaleLowerCase('pt-BR').includes(normalizedQuery))
+    : sales
+  const searchedProducts = normalizedQuery
+    ? products.filter((item) => `${item.name} ${item.brand} ${item.category}`.toLocaleLowerCase('pt-BR').includes(normalizedQuery))
+    : products
+  const searchedCustomers = normalizedQuery
+    ? customers.filter((item) => `${item.name} ${item.phone} ${item.email}`.toLocaleLowerCase('pt-BR').includes(normalizedQuery))
+    : customers
 
   // Cálculo de pagamentos a receber próximos do vencimento
   const upcomingReceivables = useMemo(() => {
     const now = new Date()
-    // Define hoje às 00:00 para comparação precisa de datas
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
     return sales
-      .filter((item) => item.status === 'A receber' && item.dueDate)
+      .map(ensureSaleInstallments)
+      .filter((item) => item.remainingAmount > 0 && item.dueDate)
       .map((sale) => {
         const parts = sale.dueDate.split('-').map(Number)
         if (parts.length !== 3) return null
@@ -96,7 +108,6 @@ export default function App() {
           isDueSoon = true
           label = 'Vence hoje!'
         } else if (notificationLeadTime === '1_hour') {
-          // Para antecedência de 1 hora, avisa itens de hoje
           if (diffDays <= 0) {
             isDueSoon = true
             label = 'Vence hoje!'
@@ -142,7 +153,6 @@ export default function App() {
       })
     }
 
-    // Se estiver no iPhone e não estiver em modo PWA, exibe a dica para adicionar à tela de início
     const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
     const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches
     if (isIos && !isStandalone) {
@@ -152,41 +162,87 @@ export default function App() {
 
   function saveSale(payload) {
     const sale = payload?.sale || payload
-    const newProduct = payload?.newProduct
+    const newProducts = payload?.newProducts || (payload?.newProduct ? [payload.newProduct] : [])
     const newCustomer = payload?.newCustomer
+    const items = payload?.items || sale?.items || []
 
     if (newCustomer) {
       setCustomers((current) => [newCustomer, ...current.filter((c) => c.id !== newCustomer.id)])
     }
 
-    if (newProduct) {
-      // Produto adicionado via lançamento de venda entra no estoque ZERADO (0)
-      setProducts((current) => [newProduct, ...current.filter((p) => p.id !== newProduct.id)])
-    } else if (sale.productId) {
-      setProducts((current) => current.map((product) => product.id === sale.productId ? {
-        ...product,
-        // Ao realizar venda, o estoque reduz ou permanece zerado (0)
-        stock: Math.max(0, Number(product.stock) - sale.quantity)
-      } : product))
+    // Se novos produtos foram criados durante o lançamento de venda, cadastra no estoque com quantidade zerada
+    if (newProducts.length > 0) {
+      setProducts((current) => {
+        const newIds = new Set(newProducts.map((p) => p.id))
+        return [...newProducts, ...current.filter((p) => !newIds.has(p.id))]
+      })
     }
 
-    setSales((current) => [sale, ...current])
+    // Abate o estoque de cada produto vendido
+    if (items.length > 0) {
+      setProducts((current) =>
+        current.map((product) => {
+          const itemSold = items.find((it) => it.productId === product.id && !it.isNewProduct)
+          if (itemSold) {
+            return {
+              ...product,
+              stock: Math.max(0, Number(product.stock) - Number(itemSold.quantity))
+            }
+          }
+          return product
+        })
+      )
+    } else if (sale.productId) {
+      setProducts((current) =>
+        current.map((product) =>
+          product.id === sale.productId
+            ? { ...product, stock: Math.max(0, Number(product.stock) - sale.quantity) }
+            : product
+        )
+      )
+    }
+
+    const normalizedSale = ensureSaleInstallments(sale)
+    setSales((current) => [normalizedSale, ...current])
   }
 
   function updateSale(updatedSale) {
-    setSales((current) => current.map((item) => (item.id === updatedSale.id ? updatedSale : item)))
+    const normalized = ensureSaleInstallments(updatedSale)
+    setSales((current) => current.map((item) => (item.id === normalized.id ? normalized : item)))
+
+    // Se o modal de pagamento estava aberto para esta venda, atualiza a referência
+    if (paymentSale && paymentSale.id === normalized.id) {
+      setPaymentSale(normalized)
+    }
   }
 
   function deleteSale(id) {
     setSales((current) => current.filter((item) => item.id !== id))
+    if (paymentSale && paymentSale.id === id) {
+      setPaymentSale(null)
+    }
   }
 
   function markPaid(id) {
-    setSales((current) => current.map((sale) => sale.id === id ? { ...sale, status: 'Pago', dueDate: '' } : sale))
+    setSales((current) =>
+      current.map((sale) => (sale.id === id ? payAllRemainingInstallments(sale) : sale))
+    )
+  }
+
+  function openNewSaleForCustomer(customer) {
+    setSaleInitialCustomerId(customer?.id || '')
+    setSaleModalOpen(true)
+  }
+
+  function openPaymentModal(sale) {
+    const normalized = ensureSaleInstallments(sale)
+    setPaymentSale(normalized)
   }
 
   function navigate(section) {
-    setActive(section); setQuery(''); setNotificationsOpen(false)
+    setActive(section)
+    setQuery('')
+    setNotificationsOpen(false)
   }
 
   return (
@@ -219,7 +275,7 @@ export default function App() {
               {customPushNotification
                 ? customPushNotification.body
                 : upcomingReceivables.length === 1
-                ? `${upcomingReceivables[0].customerName}: ${formatCurrency(upcomingReceivables[0].total)} (${upcomingReceivables[0].label})`
+                ? `${upcomingReceivables[0].customerName}: ${formatCurrency(upcomingReceivables[0].remainingAmount)} (${upcomingReceivables[0].label})`
                 : `Você tem ${upcomingReceivables.length} pagamentos a receber próximos do vencimento.`}
             </p>
           </div>
@@ -249,7 +305,9 @@ export default function App() {
       {menuOpen && <button className="scrim" aria-label="Fechar menu" onClick={() => setMenuOpen(false)} />}
       <main>
         <header className="topbar">
-          <button className="mobile-menu" aria-label="Abrir menu" onClick={() => setMenuOpen(true)}><Menu /></button>
+          <button className="mobile-menu" aria-label="Abrir menu" onClick={() => setMenuOpen(true)}>
+            <Menu />
+          </button>
           <div className="greeting">
             <h1>{active === 'Visão geral' ? 'Olá, Bianca Alves' : active}</h1>
             <p>{todayLabel}</p>
@@ -257,7 +315,12 @@ export default function App() {
 
           <label className="search">
             <Search size={16} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar cliente, produto ou venda..." aria-label="Buscar" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar cliente, produto ou venda..."
+              aria-label="Buscar"
+            />
           </label>
 
           <div className="notification-wrap">
@@ -318,14 +381,19 @@ export default function App() {
                       <div className="notif-item" key={sale.id}>
                         <div className="notif-item-info">
                           <strong>{sale.customerName}</strong>
-                          <span className="notif-item-due">{sale.label} ({formatDate(sale.dueDate)})</span>
-                          <b>{formatCurrency(sale.total)}</b>
+                          <span className="notif-item-due">
+                            {sale.label} ({formatDate(sale.dueDate)})
+                          </span>
+                          <b>{formatCurrency(sale.remainingAmount)}</b>
                         </div>
                         <button
                           type="button"
                           className="primary notif-pay-btn"
-                          onClick={() => markPaid(sale.id)}
-                          title="Marcar como pago"
+                          onClick={() => {
+                            setNotificationsOpen(false)
+                            openPaymentModal(sale)
+                          }}
+                          title="Gerenciar parcelas e recebimento"
                         >
                           Receber
                         </button>
@@ -364,24 +432,59 @@ export default function App() {
               setBrand={handleBrandChange}
               sales={searchedSales}
               products={searchedProducts}
-              onNewSale={() => setSaleModalOpen(true)}
+              onNewSale={() => {
+                setSaleInitialCustomerId('')
+                setSaleModalOpen(true)
+              }}
               onNavigate={navigate}
               todayLabel={todayLabel}
               onEditSale={(sale) => setEditingSale(sale)}
               onMarkPaid={markPaid}
+              onOpenPayment={openPaymentModal}
             />
           )}
+
           {(active === 'Lançamentos' || active === 'Vendas' || active === 'Vendas e Lançamentos') && (
             <SalesPage
               sales={searchedSales}
-              onNewSale={() => setSaleModalOpen(true)}
+              onNewSale={() => {
+                setSaleInitialCustomerId('')
+                setSaleModalOpen(true)
+              }}
               onMarkPaid={markPaid}
               onEditSale={(sale) => setEditingSale(sale)}
+              onOpenPayment={openPaymentModal}
+              onViewCustomerStatement={(client) => {
+                const found = customers.find((c) => c.id === client.customerId || c.name === client.customerName)
+                setStatementCustomer(found || { id: client.customerId, name: client.customerName })
+              }}
             />
           )}
-          {active === 'Estoque' && <ProductsPage products={searchedProducts} setProducts={setProducts} />}
-          {active === 'Clientes' && <CustomersPage customers={searchedCustomers} setCustomers={setCustomers} sales={sales} />}
-          {active === 'Financeiro' && <FinancePage sales={searchedSales} expenses={expenses} setExpenses={setExpenses} onMarkPaid={markPaid} />}
+
+          {active === 'Estoque' && (
+            <ProductsPage products={searchedProducts} setProducts={setProducts} />
+          )}
+
+          {active === 'Clientes' && (
+            <CustomersPage
+              customers={searchedCustomers}
+              setCustomers={setCustomers}
+              sales={sales}
+              onOpenPaymentModal={openPaymentModal}
+              onNewSaleForCustomer={openNewSaleForCustomer}
+            />
+          )}
+
+          {active === 'Financeiro' && (
+            <FinancePage
+              sales={searchedSales}
+              expenses={expenses}
+              setExpenses={setExpenses}
+              onMarkPaid={markPaid}
+              onOpenPayment={openPaymentModal}
+            />
+          )}
+
           {active === 'Configuração' && (
             <SettingsPage
               darkMode={darkMode}
@@ -396,19 +499,33 @@ export default function App() {
             />
           )}
         </div>
-        <button className="floating-action" onClick={() => setSaleModalOpen(true)}>
+
+        <button
+          className="floating-action"
+          onClick={() => {
+            setSaleInitialCustomerId('')
+            setSaleModalOpen(true)
+          }}
+        >
           <Plus size={21} />Novo lançamento
         </button>
       </main>
+
+      {/* Modal de Novo Lançamento de Venda (Multi-itens & Parcelamento) */}
       <NewSaleModal
         open={saleModalOpen}
-        onClose={() => setSaleModalOpen(false)}
+        onClose={() => {
+          setSaleModalOpen(false)
+          setSaleInitialCustomerId('')
+        }}
         onSave={saveSale}
         products={products}
         customers={customers}
         allowOutOfStock={allowOutOfStock}
+        initialCustomerId={saleInitialCustomerId}
       />
 
+      {/* Modal de Edição de Venda */}
       <EditSaleModal
         open={Boolean(editingSale)}
         sale={editingSale}
@@ -417,7 +534,35 @@ export default function App() {
         onDelete={deleteSale}
       />
 
-      {/* Dica para iPhone PWA (Receber notificações com Safari fechado) */}
+      {/* Modal de Pagamentos, Parcelas e Antecipações */}
+      {paymentSale && (
+        <PaymentModal
+          open={Boolean(paymentSale)}
+          sale={paymentSale}
+          onClose={() => setPaymentSale(null)}
+          onSaveSale={updateSale}
+        />
+      )}
+
+      {/* Modal de Extrato Consolidado da Cliente */}
+      {statementCustomer && (
+        <CustomerDetailsModal
+          open={Boolean(statementCustomer)}
+          customer={statementCustomer}
+          sales={sales}
+          onClose={() => setStatementCustomer(null)}
+          onOpenPaymentModal={(sale) => {
+            setStatementCustomer(null)
+            openPaymentModal(sale)
+          }}
+          onNewSaleForCustomer={(cust) => {
+            setStatementCustomer(null)
+            openNewSaleForCustomer(cust)
+          }}
+        />
+      )}
+
+      {/* Dica para iPhone PWA */}
       {showIosPwaTip && (
         <Modal
           open={showIosPwaTip}
