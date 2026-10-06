@@ -41,10 +41,10 @@ export default function App() {
   const [expenses, setExpenses] = useLocalStorage(STORAGE_KEYS.expenses, [])
 
   // Configurações personalizadas
-  const [darkMode, setDarkMode] = useLocalStorage('winkbi:dark_mode', false)
-  const [userAvatar, setUserAvatar] = useLocalStorage('winkbi:user_avatar', '/bianca.png')
-  const [allowOutOfStock, setAllowOutOfStock] = useLocalStorage('winkbi:allow_out_of_stock', false)
-  const [notificationLeadTime, setNotificationLeadTime] = useLocalStorage('winkbi:notif_lead_time', '1_day')
+  const [darkMode, setDarkMode] = useLocalStorage('weebo:dark_mode', false)
+  const [userAvatar, setUserAvatar] = useLocalStorage('weebo:user_avatar', '/bianca.png')
+  const [allowOutOfStock, setAllowOutOfStock] = useLocalStorage('weebo:allow_out_of_stock', false)
+  const [notificationLeadTime, setNotificationLeadTime] = useLocalStorage('weebo:notif_lead_time', '1_day')
 
   function handleBrandChange(selected) {
     setBrand(selected)

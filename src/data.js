@@ -1,8 +1,8 @@
 export const STORAGE_KEYS = {
-  products: 'winkbi:products',
-  customers: 'winkbi:customers',
-  sales: 'winkbi:sales',
-  expenses: 'winkbi:expenses',
+  products: 'weebo:products',
+  customers: 'weebo:customers',
+  sales: 'weebo:sales',
+  expenses: 'weebo:expenses',
 }
 
 export const BRAND_OPTIONS = ['O Boticário', 'WePink']
