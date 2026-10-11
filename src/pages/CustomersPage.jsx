@@ -13,9 +13,17 @@ export default function CustomersPage({
   setCustomers,
   sales,
   onOpenPaymentModal,
-  onNewSaleForCustomer
+  onNewSaleForCustomer,
+  customerModalOpen,
+  setCustomerModalOpen
 }) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isModalOpen = customerModalOpen !== undefined ? customerModalOpen : internalOpen
+  const setIsModalOpen = (val) => {
+    if (setCustomerModalOpen) setCustomerModalOpen(val)
+    setInternalOpen(val)
+  }
+
   const [form, setForm] = useState(initialForm)
   const [selectedCustomerForDetails, setSelectedCustomerForDetails] = useState(null)
   const [filterPendingOnly, setFilterPendingOnly] = useState(false)
@@ -26,9 +34,10 @@ export default function CustomersPage({
 
   function submit(event) {
     event.preventDefault()
-    setCustomers((current) => [{ ...form, id: makeId() }, ...current])
+    const todayStr = new Date().toISOString().slice(0, 10)
+    setCustomers((current) => [{ ...form, id: makeId(), createdAt: todayStr }, ...current])
     setForm(initialForm)
-    setOpen(false)
+    setIsModalOpen(false)
   }
 
   // Estatísticas consolidadas
@@ -57,12 +66,6 @@ export default function CustomersPage({
         <div>
           <h2>Clientes</h2>
           <p>Acompanhe contatos, compras separadas e quanto tem a receber de cada cliente.</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="primary action-button" onClick={() => setOpen(true)}>
-            <Plus size={17} />
-            Nova cliente
-          </button>
         </div>
       </div>
 
@@ -100,8 +103,6 @@ export default function CustomersPage({
             icon={UsersRound}
             title="Nenhum cliente cadastrado"
             description="Adicione sua primeira cliente para vincular às vendas."
-            actionLabel="Cadastrar cliente"
-            onAction={() => setOpen(true)}
           />
         ) : (
           <div className="table-scroll">
@@ -179,10 +180,10 @@ export default function CustomersPage({
 
       {/* Modal de Nova Cliente */}
       <Modal
-        open={open}
+        open={isModalOpen}
         title="Nova cliente"
         description="Cadastre apenas os dados necessários para o atendimento."
-        onClose={() => setOpen(false)}
+        onClose={() => setIsModalOpen(false)}
       >
         <form onSubmit={submit}>
           <label>
@@ -226,7 +227,7 @@ export default function CustomersPage({
             />
           </label>
           <div className="modal-actions">
-            <button type="button" className="secondary" onClick={() => setOpen(false)}>
+            <button type="button" className="secondary" onClick={() => setIsModalOpen(false)}>
               Cancelar
             </button>
             <button className="primary">Salvar cliente</button>

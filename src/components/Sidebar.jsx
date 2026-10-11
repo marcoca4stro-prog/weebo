@@ -7,6 +7,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
+  Smartphone,
   User,
   X
 } from 'lucide-react'
@@ -20,7 +21,7 @@ const items = [
   [Settings, 'Configuração'],
 ]
 
-export default function Sidebar({ active, onChange, open, onClose, collapsed, onToggleCollapse, userAvatar }) {
+export default function Sidebar({ active, onChange, open, onClose, collapsed, onToggleCollapse, userAvatar, onOpenSimulator }) {
   return (
     <aside className={`sidebar ${open ? 'sidebar--open' : ''} ${collapsed ? 'sidebar--collapsed' : ''}`}>
       <div className="brand-row">
@@ -68,6 +69,21 @@ export default function Sidebar({ active, onChange, open, onClose, collapsed, on
           )
         })}
       </nav>
+
+      {onOpenSimulator && (
+        <button
+          type="button"
+          className="sidebar-sim-btn"
+          onClick={() => {
+            onOpenSimulator()
+            onClose()
+          }}
+          title="Simular visualização no iPhone"
+        >
+          <Smartphone size={18} />
+          {!collapsed && <span>📱 Modo iPhone</span>}
+        </button>
+      )}
 
       {/* Cartão motivacional com elementos botânicos decorativos */}
       {!collapsed && (

@@ -15,6 +15,8 @@ import NewSaleModal from './components/NewSaleModal'
 import EditSaleModal from './components/EditSaleModal'
 import PaymentModal from './components/PaymentModal'
 import CustomerDetailsModal from './components/CustomerDetailsModal'
+import DeviceSimulator from './components/DeviceSimulator'
+import GlobalSearchModal from './components/GlobalSearchModal'
 import Sidebar from './components/Sidebar'
 import useLocalStorage from './hooks/useLocalStorage'
 import CustomersPage from './pages/CustomersPage'
@@ -37,6 +39,7 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [saleModalOpen, setSaleModalOpen] = useState(false)
+  const [productModalOpen, setProductModalOpen] = useState(false)
   const [saleInitialCustomerId, setSaleInitialCustomerId] = useState('')
   const [editingSale, setEditingSale] = useState(null)
   const [paymentSale, setPaymentSale] = useState(null)
@@ -46,17 +49,25 @@ export default function App() {
   const [customPushNotification, setCustomPushNotification] = useState(null)
   const [showIosPwaTip, setShowIosPwaTip] = useState(false)
   const [query, setQuery] = useState('')
+  const [searchModalOpen, setSearchModalOpen] = useState(false)
 
   const [products, setProducts] = useLocalStorage(STORAGE_KEYS.products, [])
   const [customers, setCustomers] = useLocalStorage(STORAGE_KEYS.customers, [])
   const [sales, setSales] = useLocalStorage(STORAGE_KEYS.sales, [])
   const [expenses, setExpenses] = useLocalStorage(STORAGE_KEYS.expenses, [])
+  const [customerModalOpen, setCustomerModalOpen] = useState(false)
 
   // Configurações personalizadas
   const [darkMode, setDarkMode] = useLocalStorage('weebo:dark_mode', false)
   const [userAvatar, setUserAvatar] = useLocalStorage('weebo:user_avatar', '/bianca.png')
   const [allowOutOfStock, setAllowOutOfStock] = useLocalStorage('weebo:allow_out_of_stock', false)
   const [notificationLeadTime, setNotificationLeadTime] = useLocalStorage('weebo:notif_lead_time', '1_day')
+  const [viewMode, setViewMode] = useLocalStorage('weebo:view_mode', 'desktop')
+
+  const isInsideIframe = typeof window !== 'undefined' && (
+    window.self !== window.top ||
+    new URLSearchParams(window.location.search).get('preview') === 'mobile_frame'
+  )
 
   function handleBrandChange(selected) {
     setBrand(selected)
@@ -245,6 +256,10 @@ export default function App() {
     setNotificationsOpen(false)
   }
 
+  if (!isInsideIframe && viewMode === 'iphone') {
+    return <DeviceSimulator onClose={() => setViewMode('desktop')} />
+  }
+
   return (
     <div
       className={`app-shell theme-${theme} ${collapsed ? 'sidebar--collapsed' : ''} ${darkMode ? 'dark-mode' : ''}`}
@@ -301,6 +316,7 @@ export default function App() {
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((v) => !v)}
         userAvatar={userAvatar}
+        onOpenSimulator={!isInsideIframe ? () => setViewMode('iphone') : null}
       />
       {menuOpen && <button className="scrim" aria-label="Fechar menu" onClick={() => setMenuOpen(false)} />}
       <main>
@@ -308,20 +324,44 @@ export default function App() {
           <button className="mobile-menu" aria-label="Abrir menu" onClick={() => setMenuOpen(true)}>
             <Menu />
           </button>
+
+          <button
+            type="button"
+            className="mobile-header-logo-btn"
+            onClick={() => navigate('Visão geral')}
+            title="Ir para Visão Geral"
+            aria-label="Ir para Visão Geral"
+          >
+            <img src="/logo.png" alt="Weebo Cosméticos" />
+          </button>
+
           <div className="greeting">
             <h1>{active === 'Visão geral' ? 'Olá, Bianca Alves' : active}</h1>
             <p>{todayLabel}</p>
           </div>
 
-          <label className="search">
+          <button
+            type="button"
+            className="search search-trigger-btn"
+            onClick={() => setSearchModalOpen(true)}
+            aria-label="Buscar lançamento, venda, cliente ou produto"
+            title="Buscar no sistema"
+          >
             <Search size={16} />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar cliente, produto ou venda..."
-              aria-label="Buscar"
-            />
-          </label>
+            <span className="search-placeholder-text">Buscar cliente, produto ou venda...</span>
+          </button>
+
+          {!isInsideIframe && (
+            <button
+              type="button"
+              className="device-mode-trigger"
+              onClick={() => setViewMode('iphone')}
+              title="Alternar para visualização no iPhone"
+            >
+              <Smartphone size={15} />
+              <span className="device-mode-text">Modo iPhone</span>
+            </button>
+          )}
 
           <div className="notification-wrap">
             <button
@@ -462,7 +502,12 @@ export default function App() {
           )}
 
           {active === 'Estoque' && (
-            <ProductsPage products={searchedProducts} setProducts={setProducts} />
+            <ProductsPage
+              products={searchedProducts}
+              setProducts={setProducts}
+              productModalOpen={productModalOpen}
+              setProductModalOpen={setProductModalOpen}
+            />
           )}
 
           {active === 'Clientes' && (
@@ -472,12 +517,16 @@ export default function App() {
               sales={sales}
               onOpenPaymentModal={openPaymentModal}
               onNewSaleForCustomer={openNewSaleForCustomer}
+              customerModalOpen={customerModalOpen}
+              setCustomerModalOpen={setCustomerModalOpen}
             />
           )}
 
           {active === 'Financeiro' && (
             <FinancePage
               sales={searchedSales}
+              allSales={sales}
+              customers={customers}
               expenses={expenses}
               setExpenses={setExpenses}
               onMarkPaid={markPaid}
@@ -503,12 +552,35 @@ export default function App() {
         <button
           className="floating-action"
           onClick={() => {
-            setSaleInitialCustomerId('')
-            setSaleModalOpen(true)
+            if (active === 'Estoque') {
+              setProductModalOpen(true)
+            } else if (active === 'Clientes') {
+              setCustomerModalOpen(true)
+            } else {
+              setSaleInitialCustomerId('')
+              setSaleModalOpen(true)
+            }
           }}
         >
-          <Plus size={21} />Novo lançamento
+          <Plus size={21} />
+          {active === 'Estoque'
+            ? 'Novo produto'
+            : active === 'Clientes'
+            ? 'Cadastrar cliente'
+            : 'Novo lançamento'}
         </button>
+
+        {!isInsideIframe && viewMode === 'desktop' && (
+          <button
+            type="button"
+            className="floating-simulator-pill"
+            onClick={() => setViewMode('iphone')}
+            title="Abrir simulador de tela do iPhone"
+          >
+            <Smartphone size={16} />
+            <span>📱 Modo iPhone</span>
+          </button>
+        )}
       </main>
 
       {/* Modal de Novo Lançamento de Venda (Multi-itens & Parcelamento) */}
@@ -561,6 +633,19 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Modal de Busca Global */}
+      <GlobalSearchModal
+        open={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        sales={sales}
+        products={products}
+        customers={customers}
+        onNavigate={navigate}
+        onEditSale={(sale) => setEditingSale(sale)}
+        onOpenPayment={(sale) => openPaymentModal(sale)}
+        onOpenCustomer={(cust) => setStatementCustomer(cust)}
+      />
 
       {/* Dica para iPhone PWA */}
       {showIosPwaTip && (

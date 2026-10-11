@@ -23,5 +23,17 @@ export default function useLocalStorage(key, initialValue) {
     }
   }, [key, value])
 
+  useEffect(() => {
+    function handleStorage(e) {
+      if (e.key === key && e.newValue !== null) {
+        try {
+          setValue(JSON.parse(e.newValue))
+        } catch {}
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [key])
+
   return [value, setValue]
 }
